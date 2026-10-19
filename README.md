@@ -24,5 +24,5 @@ flowchart TB
 
 Cada detección desarrollada en el laboratorio cuenta con su procedimiento operativo estándar (SOP) para analistas SOC N1/N2, detallando las fases de **Triaje, Threat Hunting, Contención y Hardening de Active Directory**:
 
-- 📄 **[PB-01: Respuesta ante Kerberoasting y Compromiso de Cuentas de Servicio (T1558.003)](./playbooks/PB-01-Kerberoasting.md)**
-- 📄 **[PB-02: Respuesta ante Movimiento Lateral Remoto vía PsExec y WMI (T1021.002 / T1047)](./playbooks/PB-02-Movimiento-Lateral.md)**
+- 📄 **[PB-01: Respuesta ante Kerberoasting (T1558.003)](./detections/playbooks/PB-01-Kerberoasting.md)**
+- 📄 **[PB-02: Respuesta ante Movimiento Lateral (T1021.002 / T1047)](./detections/playbooks/PB-02-Movimiento-Lateral.md)**

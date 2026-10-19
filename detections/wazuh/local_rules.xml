@@ -1,0 +1,116 @@
+<!-- ======================================================================= -->
+<!-- Proyecto: Active Directory Detection Engineering & SOC Lab              -->
+<!-- Dominio: deviltrigger.local | SIEM: Wazuh 4.9 + Sysmon SwiftOnSecurity  -->
+<!-- Autor: dtrigger289                                                      -->
+<!-- ======================================================================= -->
+
+<!-- BLOQUE 1: ACCESO A CREDENCIALES Y RECONOCIMIENTO AD -->
+<group name="windows,active_directory,credential_access,">
+
+  <!-- T1558.003: Kerberoasting (Solicitud TGS con cifrado RC4 0x17) -->
+  <!-- Tuning: Se excluyen cuentas de máquina (*$) y el servicio krbtgt -->
+  <rule id="100100" level="12">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4769$</field>
+    <field name="win.eventdata.ticketEncryptionType">^0x17$</field>
+    <field name="win.eventdata.serviceName" negate="yes" type="pcre2">\$$|^krbtgt$</field>
+    <description>Kerberoasting Detectado: Solicitud TGS con cifrado débil RC4 (0x17) contra el SPN $(win.eventdata.serviceName) desde $(win.eventdata.ipAddress)</description>
+    <mitre>
+      <id>T1558.003</id>
+    </mitre>
+  </rule>
+
+  <!-- T1110.003: Password Spraying (Correlación de fallos de logon 4625) -->
+  <rule id="100102" level="11" frequency="4" timeframe="180">
+    <if_matched_sid>60122</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <description>Posible Password Spraying: Múltiples fallos de autenticación en ventana corta desde la IP $(win.eventdata.ipAddress)</description>
+    <mitre>
+      <id>T1110.003</id>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- T1003.001: OS Credential Dumping - Acceso a memoria de LSASS (Sysmon ID 10) -->
+  <!-- Tuning: Se excluyen procesos legítimos del sistema y el propio agente SIEM -->
+  <rule id="100103" level="14">
+    <if_group>sysmon_event_10,windows,</if_group>
+    <field name="win.system.eventID">^10$</field>
+    <field name="win.eventdata.targetImage" type="pcre2">(?i)\\lsass\.exe$</field>
+    <field name="win.eventdata.grantedAccess" type="pcre2">(?i)0x1010|0x1410|0x1438|0x143a|0x1fffff</field>
+    <field name="win.eventdata.sourceImage" negate="yes" type="pcre2">(?i)\\(WmiPrvSE|svchost|MpCmdRun|wazuh-agent)\.exe$</field>
+    <description>Volcado de Credenciales Detectado: Proceso $(win.eventdata.sourceImage) accedió a la memoria de lsass.exe con permisos $(win.eventdata.grantedAccess)</description>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+</group>
+
+<!-- BLOQUE 2: EJECUCIÓN DE BINARIOS NATIVOS (LOLBINS) -->
+<group name="windows,sysmon,lolbins,">
+
+  <!-- T1105 / T1218: Descarga remota de payloads mediante Certutil -->
+  <rule id="100101" level="12">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^1$|^4688$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)certutil.*(-urlcache|-verifyctl)</field>
+    <description>Uso sospechoso de LOLBin Certutil para descarga remota ejecutado por $(win.eventdata.user): $(win.eventdata.commandLine)</description>
+    <mitre>
+      <id>T1105</id>
+      <id>T1218</id>
+    </mitre>
+  </rule>
+
+</group>
+
+<!-- BLOQUE 3: MOVIMIENTO LATERAL Y EJECUCIÓN REMOTA -->
+<group name="local,lateral_movement,windows,">
+
+  <!-- T1021.002 / T1543.003: Impacket PsExec - Creación de servicio remoto (Event 7045) -->
+  <rule id="100501" level="13">
+    <if_sid>60009, 60104, 61104</if_sid>
+    <field name="win.system.eventID">^7045$</field>
+    <field name="win.eventdata.imagePath" type="pcre2">(?i)^%systemroot%\\[a-zA-Z]{8}\.exe$</field>
+    <description>Movimiento Lateral Detectado: Instalación de servicio remoto estilo Impacket PsExec ($(win.eventdata.serviceName)) en $(win.system.computer)</description>
+    <mitre>
+      <id>T1021.002</id>
+      <id>T1543.003</id>
+      <id>T1569.002</id>
+    </mitre>
+  </rule>
+
+  <!-- T1021.002: Impacket PsExec - Sysmon Event ID 11 (Archivo en ADMIN$) -->
+  <!-- Encadenado a rule.id 92213 (nivel 15 nativo en Wazuh 4.9) -->
+  <rule id="100502" level="15">
+    <if_sid>61613, 92213</if_sid>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)^C:\\Windows\\[a-zA-Z]{8}\.exe$</field>
+    <description>Movimiento Lateral (Sysmon 11): Ejecutable aleatorio de 8 caracteres depositado en ADMIN$ ($(win.eventdata.targetFilename))</description>
+    <mitre>
+      <id>T1021.002</id>
+    </mitre>
+  </rule>
+
+  <!-- T1047: Impacket WMIExec - Sysmon Event ID 1 (WmiPrvSE -> cmd.exe -> ADMIN$) -->
+  <rule id="100503" level="14">
+    <if_sid>61603, 92031, 92052, 67027</if_sid>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\WmiPrvSE\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)cmd\.exe.*\/Q.*\/c.*127\.0\.0\.1\\ADMIN\$</field>
+    <description>Movimiento Lateral Detectado: Ejecución remota vía Impacket WMIExec desde WmiPrvSE.exe ($(win.eventdata.commandLine))</description>
+    <mitre>
+      <id>T1047</id>
+    </mitre>
+  </rule>
+
+  <!-- T1047: Ejecución de comandos remotos por WMI (Genérica) -->
+  <rule id="100504" level="12">
+    <if_sid>61603, 92031, 92052, 67027</if_sid>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\WmiPrvSE\.exe$</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(cmd|powershell)\.exe$</field>
+    <description>Ejecución Remota WMI: WmiPrvSE.exe lanzó un intérprete de comandos ($(win.eventdata.image)) con usuario $(win.eventdata.user)</description>
+    <mitre>
+      <id>T1047</id>
+    </mitre>
+  </rule>
+
+</group>

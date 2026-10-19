@@ -1,0 +1,28 @@
+title: Solicitud de Ticket Kerberos TGS con Cifrado RC4 (Kerberoasting)
+id: 8b3a2e10-4f2c-4d9a-9c1b-7e5f8a2d1c01
+status: experimental
+description: >
+  Detecta peticiones de tickets de servicio Kerberos (Event ID 4769) utilizando cifrado
+  RC4-HMAC (0x17) contra cuentas de servicio. Excluye cuentas de máquina ($) y el servicio krbtgt
+  para minimizar falsos positivos en entornos Active Directory híbridos o heredados.
+author: dtrigger289
+date: 2026/10/19
+tags:
+  - attack.credential_access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+    TicketOptions: '0x40810000'
+  filter_machine_accounts:
+    ServiceName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: 'krbtgt'
+  condition: selection and not 1 of filter_*
+falsepositives:
+  - Aplicaciones legacy que no soportan AES128/AES256 en Active Directory.
+level: high

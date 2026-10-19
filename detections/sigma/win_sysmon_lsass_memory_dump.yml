@@ -1,0 +1,33 @@
+title: Acceso Sospechoso a la Memoria de LSASS (Credential Dumping)
+id: 3f9c4b21-6e8a-4a12-8d5c-1b9e4f7a2c02
+status: experimental
+description: >
+  Detecta procesos no autorizados abriendo un handle de lectura sobre lsass.exe (Sysmon Event ID 10)
+  con máscaras GrantedAccess típicas de herramientas de volcado de credenciales (Mimikatz, Procdump, Comsvcs).
+author: dtrigger289
+date: 2026/10/19
+tags:
+  - attack.credential_access
+  - attack.t1003.001
+logsource:
+  category: process_access
+  product: windows
+detection:
+  selection:
+    TargetImage|endswith: '\lsass.exe'
+    GrantedAccess|contains:
+      - '0x1010'
+      - '0x1410'
+      - '0x1438'
+      - '0x143a'
+      - '0x1fffff'
+  filter_system_legit:
+    SourceImage|startswith:
+      - 'C:\Windows\System32\wbem\WmiPrvSE.exe'
+      - 'C:\Windows\System32\svchost.exe'
+      - 'C:\ProgramData\Microsoft\Windows Defender\'
+      - 'C:\Program Files (x86)\ossec-agent\wazuh-agent.exe'
+  condition: selection and not filter_system_legit
+falsepositives:
+  - Agentes EDR/Antivirus de terceros no incluidos en la lista de exclusión.
+level: critical

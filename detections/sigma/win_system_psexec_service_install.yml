@@ -1,0 +1,26 @@
+title: Instalación de Servicio Remoto Estilo Impacket PsExec
+id: 5d2e7a94-1c3b-4f8e-9a4d-6c8b2e1f9a03
+status: experimental
+description: >
+  Detecta el registro de un nuevo servicio en Windows (Event ID 7045) cuyo binario ejecutable
+  sigue el patrón de nombres aleatorios de 8 caracteres en %systemroot% utilizado por Impacket PsExec.
+author: dtrigger289
+date: 2026/10/19
+tags:
+  - attack.lateral_movement
+  - attack.t1021.002
+  - attack.persistence
+  - attack.t1543.003
+  - attack.execution
+  - attack.t1569.002
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    EventID: 7045
+    ImagePath|re: '(?i)^%systemroot%\\[a-zA-Z]{8}\.exe$'
+  condition: selection
+falsepositives:
+  - Extremadamente raros dado el patrón estricto de ruta y longitud de caracteres en %systemroot%.
+level: high

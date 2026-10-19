@@ -1,0 +1,27 @@
+title: Ejecución Remota de Comandos vía WMI (Impacket WMIExec)
+id: 9a4c6e82-7b1d-4e3f-8c2a-4d7f1e9b3c04
+status: experimental
+description: >
+  Detecta el proceso proveedor de WMI (WmiPrvSE.exe) invocando cmd.exe con redirección de salida
+  hacia el recurso administrativo ADMIN$, patrón característico de movimiento lateral sin servicio.
+author: dtrigger289
+date: 2026/10/19
+tags:
+  - attack.execution
+  - attack.t1047
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_parent:
+    ParentImage|endswith: '\WmiPrvSE.exe'
+  selection_cli:
+    CommandLine|contains|all:
+      - 'cmd.exe'
+      - '/Q'
+      - '/c'
+      - '\\127.0.0.1\ADMIN$\'
+  condition: selection_parent and selection_cli
+falsepositives:
+  - Scripts administrativos personalizados que redirijan salidas locales a través de ADMIN$ vía WMI.
+level: high
